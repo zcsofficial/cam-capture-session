@@ -61,4 +61,4 @@ def send_image_to_telegram(image_data):
         raise Exception(f"Error sending image to Telegram: {response.text}")
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
